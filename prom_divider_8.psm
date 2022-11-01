@@ -1,0 +1,72 @@
+; KCPSM6 Program
+
+;**************************************************************************************
+;Port definitions
+;**************************************************************************************
+	CONSTANT Dividend_port,				00000001'b
+	CONSTANT Divisor_port,				00000010'b
+	CONSTANT Control_signal_port,		00000011'b
+	CONSTANT Quotient_port,				00000001'b
+	CONSTANT Remainder_port,			00000010'b
+	CONSTANT Current_State_port,		00000011'b
+
+	CONSTANT Report_Qi, 				00000010'b
+	CONSTANT Report_Qc, 				00000100'b
+	CONSTANT Report_Qd_Done, 			00001001'b
+
+	CONSTANT Mask_to_check_Start, 		00000010'b
+	CONSTANT Mask_to_check_Ack, 		00000001'b			   
+				   
+;**************************************************************************************
+; Special Register usage
+;**************************************************************************************
+	;NAMEREG s0 Dividend_port
+	;NAMEREG s1 Divisor_port
+	;NAMEREG s2 Control_signal_port
+	;NAMEREG s3 Quotient_port
+	;NAMERED s4 Remainder_port
+	;NAMEREG s5 Current_State_port
+
+;**************************************************************************************
+;MAIN PROGRAM
+;**************************************************************************************
+	state_initial: OUTPUTK Report_Qi, Current_State_port	;
+				   INPUT s0, Dividend_port					;
+				   INPUT s1, Divisor_port					;
+				   INPUT s2, Control_signal_port			;
+				   LOAD s3, 00								;
+				   LOAD s4, 00								;
+				   OUTPUT s3, Quotient_port					;
+				   OUTPUT s4, Remainder_port				;
+				   OUTPUT s5, Current_State_port			;
+				   AND s2, Mask_to_check_Start				;
+				   JUMP Z, state_initial					;
+				   JUMP state_compute						;
+
+;***************************************************************************************
+;Compute State (Division Sequence)
+;****************************************************************************************
+	state_compute: OUTPUTK Report_Qc, Current_State_port	; Indicating Current State as Compute State (Qc)
+				   OUTPUT s3, Quotient_port					; Sending out Quotient to fabric logic
+				   OUTPUT s4, Remainder_port				; Sending out Remainder to fabric logic
+				   COMPARE s0, s1							; if Dividend smaller than Divisor
+				   JUMP C, state_done						;  then jump to Done State (Qd)
+				   SUB s0, s1								; else subtract Divisor from Dividend
+				   ADD s3, 01								;  add 1 to the Quotient
+				   JUMP state_compute						;  and come back to Compute State (Qc)
+	
+;****************************************************************************************
+;Done State
+;****************************************************************************************
+	state_done:	   OUTPUTK Report_Qd_Done, Current_State_port	;
+				   OUTPUT s3, Quotient_port						;
+				   OUTPUT s4, Remainder_port					;
+				   INPUT s2, Control_signal_port				;
+				   AND s2, Mask_to_check_Ack					;
+				   JUMP Z, state_done							;
+				   JUMP state_initial							;
+;**************************************************************************************
+;Interrupt Vector
+;**************************************************************************************
+;	Not used here
+                      
